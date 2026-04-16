@@ -1,22 +1,22 @@
 import gspread
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 import sys
 
-# ── Config ──────────────────────────────────────────────────────────────────
 CREDENTIALS_FILE = "credentials.json"
 SPREADSHEET_NAME = "Outback Pay Logging"
 CALENDAR_KEYWORD = "Hotschedules"
+MIN_WAGE = 17.65
+
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/calendar.readonly",
 ]
-# ────────────────────────────────────────────────────────────────────────────
 
 
 def is_work_day():
@@ -39,7 +39,6 @@ def is_work_day():
         orderBy="startTime",
     ).execute()
 
-    print(events_result)
     events = events_result.get("items", [])
 
     for event in events:
@@ -57,7 +56,8 @@ def mainScreen():
     print("2. Update Logs")
     print("3. View Logs")
     print("4. Delete Log")
-    print("5. Done")
+    print("5. Add Payday")
+    print("6. Done")
 
 
 def viewLogs(df):
@@ -156,11 +156,11 @@ def addTip(df, worksheet):
 
         while True:
             print("Is the following information correct:")
-            done = input(f"{newLog}\nPlease answer yes or no: ").strip().lower()
-            if done == "yes" or done == "no":
+            done = input(f"{newLog}\nPlease answer y/n: ").strip().lower()
+            if done == "y" or done == "n":
                 break
 
-        if done == "yes":
+        if done == "y":
             break
 
     new_row_df = pd.DataFrame([newLog])
@@ -190,11 +190,11 @@ def deleteLog(df, worksheet):
             print("Invalid date. Please use MM/DD/YYYY.")
 
     while True:
-        confirm = input(f"You want to delete the log for {day}? Please answer yes or no: ").strip().lower()
-        if confirm == "yes" or confirm == "no":
+        confirm = input(f"You want to delete the log for {day}? Please answer y/n: ").strip().lower()
+        if confirm == "y" or confirm == "n":
             break
 
-    if confirm == "yes":
+    if confirm == "y":
         try:
             indices_to_drop = df[df['Date'] == day].index
             updated_df = df.drop(indices_to_drop).reset_index(drop=True)
@@ -216,20 +216,134 @@ def deleteLog(df, worksheet):
         return df
 
 
+def addPayDay(df, dfPayDay, payDaySheet):
+    while True:
+        # get start date
+        if dfPayDay.empty:
+            while True:
+                start = input("Enter start date (MM/DD/YYYY): ").strip()
+                try:
+                    datetime.strptime(start, "%m/%d/%Y")
+                    break
+                except ValueError:
+                    print("Invalid date. Please use MM/DD/YYYY.")
+        else:
+            start = dfPayDay.iloc[-1]["End Date"]
+            start = (datetime.strptime(start, "%m/%d/%Y") + timedelta(days=1)).strftime("%m/%d/%Y")
+        
+        # get end date
+        while True:
+            end = input("Enter end date (MM/DD/YYYY): ").strip()
+            try:
+                datetime.strptime(end, "%m/%d/%Y")
+                break
+            except ValueError:
+                print("Invalid date. Please use MM/DD/YYYY.")
+        
+        # get gross pay
+        while True:
+            try:
+                gross = round(float(input("Enter gross pay: ").strip()), 2)
+                if gross >= 0:
+                    break
+            except ValueError:
+                print("Invalid gross pay amount. Please enter a valid dollar amount.")
+        
+        # get tax
+        while True:
+            try:
+                tax = round(float(input("Enter tax: ").strip()), 2)
+                if tax >= 0:
+                    break
+            except ValueError:
+                print("Invalid tax amount. Please enter a valid dollar amount.")
+    
+        while True:
+            print("Please confirm the following information:")
+            confirm = input(f"Start: {start}, End: {end}, Gross Pay: {gross}, Tax: {tax}\nPlease answer y/n: ")
+            
+            if confirm == "y" or confirm == "n":
+                break
+        
+        if confirm == "y":
+            # Work on a copy so the original df is never mutated
+            temp_df = df.copy()
+            temp_df['Date'] = pd.to_datetime(temp_df['Date'], format='%m/%d/%Y')
+            startDate = pd.to_datetime(start, format='%m/%d/%Y')
+            endDate = pd.to_datetime(end, format='%m/%d/%Y')
+
+            mask = (temp_df['Date'] >= startDate) & (temp_df['Date'] <= endDate)
+            filtered_df = temp_df.loc[mask].sort_values("Date").copy()
+
+            filtered_df['Date'] = filtered_df['Date'].dt.strftime('%m/%d/%Y')
+
+            # calculations
+            totalHours = filtered_df["Hours"].sum()
+            workdayPay = round(gross - tax, 2)
+            cardTotal = filtered_df["Card"].sum()
+            cashTotal = filtered_df["Cash"].sum()
+            totalTip = round(cardTotal + cashTotal, 2)
+            beforeTax = round(totalTip + gross, 2)
+            afterTax = round(beforeTax - tax, 2)
+            hourlyAfterTax = round(afterTax/totalHours, 2)
+            deviation = round(hourlyAfterTax - MIN_WAGE, 2)
+
+            newLog = {
+                "Start Date"                : start,
+                "End Date"                  : end,
+                "Total Hours"               : totalHours,
+                "Gross Pay"                 : gross,
+                "Tax"                       : tax,
+                "Workday Pay"               : workdayPay,
+                "Card Total"                : cardTotal,
+                "Cash Total"                : cashTotal,
+                "Tip Total"                 : totalTip,
+                "Before Taxes"              : beforeTax,
+                "After Taxes"               : afterTax,
+                "Hourly Wage (After Taxes)" : hourlyAfterTax
+            }
+
+            new_row_df = pd.DataFrame([newLog])
+            updated_dfPayDay = pd.concat([dfPayDay, new_row_df], ignore_index=True)
+
+            set_with_dataframe(payDaySheet, updated_dfPayDay, include_index=False, resize=True)
+
+            # display
+            print("="*100)
+            print("Successfully added!\nSummary: ")
+            print(f"Between [{start}-{end}], you worked [{totalHours}hr(s)].")
+            print(f"In that time you earned [${afterTax}] after taxes ([${beforeTax}] before taxes).")
+            print(f"You earned [${cashTotal}] in cash tips and [${cardTotal}] in card tips")
+            print(f"Gross pay was [${gross}] and tax taken was [${tax}], which means you got [${workdayPay}] from Work Pay.")
+            print(f"Hourly wage after tax is [${hourlyAfterTax}], which is ", end="")
+            if deviation >= 0:
+                print(f"${deviation} above the minimum wage (${MIN_WAGE}).\n")
+            else:
+                print(f"${deviation} below the minimum wage (${MIN_WAGE}).\n")
+            print(updated_dfPayDay.tail(10))
+            print("="*100)
+            break
+            
+    return updated_dfPayDay
+
 def main():
     # Check Google Calendar for a shift today
     if not is_work_day():
-        print("Today is not a workday. Enjoy the break!")
+        print("Today is not a workday. Enjoy your day off!")
         sys.exit(0)
 
     # Connect to Sheets
     gc = gspread.service_account(filename=CREDENTIALS_FILE)
     sh = gc.open(SPREADSHEET_NAME)
-    worksheet = sh.get_worksheet(0)
 
-    # Load worksheet as df
+    # "Daily" tab
+    worksheet = sh.get_worksheet(0)
     df = get_as_dataframe(worksheet)
 
+    # "PayDay" tab
+    payDaySheet = sh.get_worksheet(1)
+    dfPayDay = get_as_dataframe(payDaySheet)
+    
     while True:
         mainScreen()
         option = input()
@@ -241,6 +355,8 @@ def main():
         elif option == "4":
             df = deleteLog(df, worksheet)
         elif option == "5":
+            dfPayDay = addPayDay(df, dfPayDay, payDaySheet)
+        elif option == "6":
             break
         else:
             print("Invalid option.")
