@@ -53,11 +53,77 @@ def mainScreen():
     print("Pay Logger")
     print("What would you like to do? (Enter number)")
     print("1. Add New Log")
-    print("2. Update Logs")
-    print("3. View Logs")
-    print("4. Delete Log")
-    print("5. Add Payday")
-    print("6. Done")
+    print("2. View Logs")
+    print("3. Delete Log")
+    print("4. Add Payday")
+    print("5. Done")
+
+
+def checkNewWeek(prevDate):
+    currDate = datetime.now()
+
+    prevDateWeek = (prevDate.isocalendar()[0], prevDate.isocalendar()[1])
+    currDateWeek = (currDate.isocalendar()[0], currDate.isocalendar()[1])
+
+    if prevDateWeek != currDateWeek:
+        return True
+    
+    return False
+
+
+def weeklyLogs(weeklySheet, dfWeekly, df):
+    if not checkNewWeek(datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")):
+        return
+
+    temp_df = df.copy()
+    temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
+
+    # If weekly sheet has entries, only calculate from last entry onwards
+    if not dfWeekly.empty:
+        last_week_ending = pd.to_datetime(dfWeekly.iloc[-1]["Week Ending"], format="%m/%d/%Y")
+        temp_df = temp_df[temp_df['Date'] > last_week_ending]
+
+    if temp_df.empty:
+        print("No new weeks to add.")
+        return
+
+    weekly = temp_df.groupby(pd.Grouper(key="Date", freq='W')).agg({
+        'Hours'     : 'sum',
+        'Card'      : 'sum',
+        'Cash'      : 'sum',
+        'Total Tip' : 'sum'
+    }).reset_index()
+
+    # get rid of weeks not worked
+    weekly = weekly[weekly['Hours'] > 0]
+
+    # drop current incomplete week
+    today = pd.Timestamp.now()
+    weekly = weekly[weekly['Date'] < today - pd.Timedelta(days=today.dayofweek)]
+
+    if weekly.empty:
+        print("No completed weeks to add.")
+        return
+
+    # format
+    weekly['Date']      = weekly['Date'].dt.strftime('%m/%d/%Y')
+    weekly              = weekly.rename(columns={'Date': 'Week Ending'})
+    weekly['Card']      = weekly['Card'].round(2)
+    weekly['Cash']      = weekly['Cash'].round(2)
+    weekly['Total Tip'] = weekly['Total Tip'].round(2)
+
+    # append to existing entries
+    updated_dfWeekly = pd.concat([dfWeekly, weekly], ignore_index=True)
+    set_with_dataframe(weeklySheet, updated_dfWeekly, include_index=False, resize=True)
+    print("Weekly updated!")
+
+
+def monthlyLogs():
+    pass
+
+
+def yearlyLogs():
+    pass
 
 
 def viewLogs(df):
@@ -340,24 +406,44 @@ def main():
     worksheet = sh.get_worksheet(0)
     df = get_as_dataframe(worksheet)
 
+    # "Weekly" tab
+    weeklySheet = sh.get_worksheet(1)
+    dfWeekly = get_as_dataframe(weeklySheet)
+
+    # "Monthly" tab
+    monthlySheet = sh.get_worksheet(2)
+    dfMonthly = get_as_dataframe(monthlySheet)
+
+    # "Yearly" tab
+    yearlySheet = sh.get_worksheet(3)
+    dfYearly = get_as_dataframe(yearlySheet)
+
     # "PayDay" tab
-    payDaySheet = sh.get_worksheet(1)
+    payDaySheet = sh.get_worksheet(4)
     dfPayDay = get_as_dataframe(payDaySheet)
     
+    # update weekly, monthly, and yearly tabs
+    weeklyLogs(weeklySheet, dfWeekly, df)
+
     while True:
         mainScreen()
         option = input()
 
         if option == "1":
             df = addTip(df, worksheet)
-        elif option == "3":
+
+        elif option == "2":
             viewLogs(df)
-        elif option == "4":
+        
+        elif option == "3":
             df = deleteLog(df, worksheet)
-        elif option == "5":
+        
+        elif option == "4":
             dfPayDay = addPayDay(df, dfPayDay, payDaySheet)
-        elif option == "6":
+        
+        elif option == "5":
             break
+        
         else:
             print("Invalid option.")
 
