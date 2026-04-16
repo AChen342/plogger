@@ -1,6 +1,6 @@
 import gspread
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
@@ -26,10 +26,9 @@ def is_work_day():
     )
     service = build("calendar", "v3", credentials=creds)
 
-    # Get start and end of today in UTC
-    today = datetime.now().date()
-    time_min = datetime.combine(today, datetime.min.time()).isoformat() + "Z"
-    time_max = datetime.combine(today, datetime.max.time()).isoformat() + "Z"
+    today_utc = datetime.now(timezone.utc).date()
+    time_min = datetime.combine(today_utc, datetime.min.time(), tzinfo=timezone.utc).isoformat()
+    time_max = datetime.combine(today_utc, datetime.max.time(), tzinfo=timezone.utc).isoformat()
 
     events_result = service.events().list(
         calendarId="achen.w342@gmail.com",
@@ -71,143 +70,70 @@ def checkNewYear(last_date):
     return today.year != last_date.year
 
 
-
-def weeklyLogs(weeklySheet, dfWeekly, df):
-    if not checkNewWeek(datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")):
+def aggregateLogs(sheet, dfAgg, df, freq, colName, dateFmt):
+    if df.empty:
+        print(f"No daily logs found; skipping {colName} update.")
         return
+
+    last_date = datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")
+
+    # Pick the right check function based on frequency
+    if freq == 'W':
+        if not checkNewWeek(last_date):
+            return
+    elif freq == 'MS':
+        if not checkNewMonth(last_date):
+            return
+    elif freq == 'YS':
+        if not checkNewYear(last_date):
+            return
 
     temp_df = df.copy()
     temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
 
-    # If weekly sheet has entries, only calculate from last entry onwards
-    if not dfWeekly.empty:
-        last_week_ending = pd.to_datetime(dfWeekly.iloc[-1]["Week Ending"], format="%m/%d/%Y")
-        temp_df = temp_df[temp_df['Date'] > last_week_ending]
+    # Only calculate from after the last already-logged period
+    if not dfAgg.empty:
+        last_period = pd.to_datetime(dfAgg.iloc[-1][colName], format=dateFmt)
+        temp_df = temp_df[temp_df['Date'] > last_period]
 
     if temp_df.empty:
-        print("No new weeks to add.")
+        print(f"No new {colName.lower()} entries to add.")
         return
 
-    weekly = temp_df.groupby(pd.Grouper(key="Date", freq='W')).agg({
+    aggregated = temp_df.groupby(pd.Grouper(key="Date", freq=freq)).agg({
         'Hours'     : 'sum',
         'Card'      : 'sum',
         'Cash'      : 'sum',
         'Total Tip' : 'sum'
     }).reset_index()
 
-    # get rid of weeks not worked
-    weekly = weekly[weekly['Hours'] > 0]
+    # Drop periods with no hours worked
+    aggregated = aggregated[aggregated['Hours'] > 0]
 
-    # drop current incomplete week
+    # Drop the current incomplete period
     today = pd.Timestamp.now()
-    weekly = weekly[weekly['Date'] < today - pd.Timedelta(days=today.dayofweek)]
+    if freq == 'W':
+        aggregated = aggregated[aggregated['Date'] < today - pd.Timedelta(days=today.dayofweek)]
+    elif freq == 'MS':
+        aggregated = aggregated[aggregated['Date'].dt.month != today.month]
+    elif freq == 'YS':
+        aggregated = aggregated[aggregated['Date'].dt.year != today.year]
 
-    if weekly.empty:
-        print("No completed weeks to add.")
+    if aggregated.empty:
+        print(f"No completed {colName.lower()} periods to add.")
         return
 
-    # format
-    weekly['Date']      = weekly['Date'].dt.strftime('%m/%d/%Y')
-    weekly              = weekly.rename(columns={'Date': 'Week Ending'})
-    weekly['Card']      = weekly['Card'].round(2)
-    weekly['Cash']      = weekly['Cash'].round(2)
-    weekly['Total Tip'] = weekly['Total Tip'].round(2)
+    # Format
+    aggregated['Date']      = aggregated['Date'].dt.strftime(dateFmt)
+    aggregated              = aggregated.rename(columns={'Date': colName})
+    aggregated['Card']      = aggregated['Card'].round(2)
+    aggregated['Cash']      = aggregated['Cash'].round(2)
+    aggregated['Total Tip'] = aggregated['Total Tip'].round(2)
 
-    # append to existing entries
-    updated_dfWeekly = pd.concat([dfWeekly, weekly], ignore_index=True)
-    set_with_dataframe(weeklySheet, updated_dfWeekly, include_index=False, resize=True)
-    print("Weekly updated!")
+    updated = pd.concat([dfAgg, aggregated], ignore_index=True)
+    set_with_dataframe(sheet, updated, include_index=False, resize=True)
+    print(f"{colName} updated!")
 
-
-def monthlyLogs(monthlySheet, dfMonthly, df):
-    if not checkNewMonth(datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")):
-        return
-
-    temp_df = df.copy()
-    temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
-
-    # If monthly sheet has entries, only calculate from last entry onwards
-    if not dfMonthly.empty:
-        last_month_ending = pd.to_datetime(dfMonthly.iloc[-1]["Month"], format="%m/%Y")
-        temp_df = temp_df[temp_df['Date'] > last_month_ending]
-
-    if temp_df.empty:
-        print("No new months to add.")
-        return
-
-    monthly = temp_df.groupby(pd.Grouper(key="Date", freq='MS')).agg({
-        'Hours'     : 'sum',
-        'Card'      : 'sum',
-        'Cash'      : 'sum',
-        'Total Tip' : 'sum'
-    }).reset_index()
-
-    # drop empty months
-    monthly = monthly[monthly['Hours'] > 0]
-
-    # drop current incomplete month
-    today = pd.Timestamp.now()
-    monthly = monthly[monthly['Date'].dt.month != today.month]
-
-    # format
-    monthly['Date']      = monthly['Date'].dt.strftime('%m/%Y')
-    monthly              = monthly.rename(columns={'Date': 'Month'})
-    monthly['Card']      = monthly['Card'].round(2)
-    monthly['Cash']      = monthly['Cash'].round(2)
-    monthly['Total Tip'] = monthly['Total Tip'].round(2)
-
-    # append to existing entries
-    updated_dfMonthly = pd.concat([dfMonthly, monthly], ignore_index=True)
-    set_with_dataframe(monthlySheet, updated_dfMonthly, include_index=False, resize=True)
-    print("Monthly updated!")
-
-
-def yearlyLogs(yearlySheet, dfYearly, df):
-    if not checkNewYear(datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")):
-        return
-
-    temp_df = df.copy()
-    temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
-
-    # If yearly sheet has entries, only calculate from last entry onwards
-    if not dfYearly.empty:
-        last_year = pd.to_datetime(dfYearly.iloc[-1]["Year"], format="%Y")
-        temp_df = temp_df[temp_df['Date'].dt.year > last_year.year]
-
-    if temp_df.empty:
-        print("No new years to add.")
-        return
-
-    yearly = temp_df.groupby(pd.Grouper(key="Date", freq='YS')).agg({
-        'Hours'     : 'sum',
-        'Card'      : 'sum',
-        'Cash'      : 'sum',
-        'Total Tip' : 'sum'
-    }).reset_index()
-
-    # drop empty years
-    yearly = yearly[yearly['Hours'] > 0]
-
-    # drop current incomplete year
-    today = pd.Timestamp.now()
-    yearly = yearly[yearly['Date'].dt.year != today.year]
-
-    # format
-    yearly['Date']      = yearly['Date'].dt.strftime('%Y')
-    yearly              = yearly.rename(columns={'Date': 'Year'})
-    yearly['Card']      = yearly['Card'].round(2)
-    yearly['Cash']      = yearly['Cash'].round(2)
-    yearly['Total Tip'] = yearly['Total Tip'].round(2)
-
-    # append to existing entries
-    updated_dfYearly = pd.concat([dfYearly, yearly], ignore_index=True)
-    set_with_dataframe(yearlySheet, updated_dfYearly, include_index=False, resize=True)
-    print("Yearly updated!")
-
-
-# ---------------------------------------------------------------------------
-# User interaction helpers
-# ---------------------------------------------------------------------------
 
 def viewLogs(df):
     run = True
@@ -294,7 +220,7 @@ def addTip(df, worksheet):
             except ValueError:
                 print("Please enter valid hours.")
 
-        totalTip = float(cash) + float(card)
+        totalTip = cash + card
         newLog = {
             "Date"      : day,
             "Hours"     : hours,
@@ -338,6 +264,10 @@ def deleteLog(df, worksheet):
         except ValueError:
             print("Invalid date. Please use MM/DD/YYYY.")
 
+    if df[df['Date'] == day].empty:
+        print(f"No log found for {day}. Deletion cancelled.")
+        return df
+
     while True:
         confirm = input(f"You want to delete the log for {day}? Please answer y/n: ").strip().lower()
         if confirm == "y" or confirm == "n":
@@ -367,8 +297,10 @@ def deleteLog(df, worksheet):
 
 def addPayDay(df, dfPayDay, payDaySheet):
     while True:
+        dfPayDay = dfPayDay.dropna(how='all')
+
         # get start date
-        if dfPayDay.empty:
+        if dfPayDay.empty or pd.isna(dfPayDay.iloc[-1]["End Date"]):
             while True:
                 start = input("Enter start date (MM/DD/YYYY): ").strip()
                 try:
@@ -377,8 +309,8 @@ def addPayDay(df, dfPayDay, payDaySheet):
                 except ValueError:
                     print("Invalid date. Please use MM/DD/YYYY.")
         else:
-            start = dfPayDay.iloc[-1]["End Date"]
-            start = (datetime.strptime(start, "%m/%d/%Y") + timedelta(days=1)).strftime("%m/%d/%Y")
+            last_end_date = str(dfPayDay.iloc[-1]["End Date"])
+            start = (datetime.strptime(last_end_date, "%m/%d/%Y") + timedelta(days=1)).strftime("%m/%d/%Y")        
         
         # get end date
         while True:
@@ -427,14 +359,14 @@ def addPayDay(df, dfPayDay, payDaySheet):
             filtered_df['Date'] = filtered_df['Date'].dt.strftime('%m/%d/%Y')
 
             # calculations
-            totalHours = filtered_df["Hours"].sum()
+            totalHours = round(filtered_df["Hours"].sum(), 2)
             workdayPay = round(gross - tax, 2)
-            cardTotal = filtered_df["Card"].sum()
-            cashTotal = filtered_df["Cash"].sum()
+            cardTotal = round(filtered_df["Card"].sum(), 2)
+            cashTotal = round(filtered_df["Cash"].sum(), 2)
             totalTip = round(cardTotal + cashTotal, 2)
             beforeTax = round(totalTip + gross, 2)
             afterTax = round(beforeTax - tax, 2)
-            hourlyAfterTax = round(afterTax/totalHours, 2)
+            hourlyAfterTax = round(afterTax / totalHours, 2)
             deviation = round(hourlyAfterTax - MIN_WAGE, 2)
 
             newLog = {
@@ -449,7 +381,7 @@ def addPayDay(df, dfPayDay, payDaySheet):
                 "Tip Total"                 : totalTip,
                 "Before Taxes"              : beforeTax,
                 "After Taxes"               : afterTax,
-                "Hourly Wage (After Taxes)" : hourlyAfterTax
+                "Hourly Wage (After Taxes)" : hourlyAfterTax,
             }
 
             new_row_df = pd.DataFrame([newLog])
@@ -468,7 +400,7 @@ def addPayDay(df, dfPayDay, payDaySheet):
             if deviation >= 0:
                 print(f"${deviation} above the minimum wage (${MIN_WAGE}).\n")
             else:
-                print(f"${deviation} below the minimum wage (${MIN_WAGE}).\n")
+                print(f"${abs(deviation)} below the minimum wage (${MIN_WAGE}).\n")
             print(updated_dfPayDay.tail(10))
             print("="*100)
             break
@@ -496,30 +428,24 @@ def main():
     gc = gspread.service_account(filename=CREDENTIALS_FILE)
     sh = gc.open(SPREADSHEET_NAME)
 
-    # "Daily" tab
     worksheet = sh.get_worksheet(0)
-    df = get_as_dataframe(worksheet)
+    df = get_as_dataframe(worksheet).dropna(how='all')
 
-    # "Weekly" tab
     weeklySheet = sh.get_worksheet(1)
-    dfWeekly = get_as_dataframe(weeklySheet)
+    dfWeekly = get_as_dataframe(weeklySheet).dropna(how='all')
 
-    # "Monthly" tab
     monthlySheet = sh.get_worksheet(2)
-    dfMonthly = get_as_dataframe(monthlySheet)
+    dfMonthly = get_as_dataframe(monthlySheet).dropna(how='all')
 
-    # "Yearly" tab
     yearlySheet = sh.get_worksheet(3)
-    dfYearly = get_as_dataframe(yearlySheet)
+    dfYearly = get_as_dataframe(yearlySheet).dropna(how='all')
 
-    # "PayDay" tab
     payDaySheet = sh.get_worksheet(4)
-    dfPayDay = get_as_dataframe(payDaySheet)
-    
-    # update weekly, monthly, and yearly tabs
-    weeklyLogs(weeklySheet, dfWeekly, df)
-    monthlyLogs(monthlySheet, dfMonthly, df)
-    yearlyLogs(yearlySheet, dfYearly, df)
+    dfPayDay = get_as_dataframe(payDaySheet).dropna(how='all')
+
+    aggregateLogs(weeklySheet,  dfWeekly,  df, freq='W',   colName='Week Ending', dateFmt='%m/%d/%Y')
+    aggregateLogs(monthlySheet, dfMonthly, df, freq='MS',  colName='Month',       dateFmt='%m/%Y')
+    aggregateLogs(yearlySheet,  dfYearly,  df, freq='YS',  colName='Year',        dateFmt='%Y')
 
     while True:
         mainScreen()
