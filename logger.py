@@ -9,7 +9,7 @@ import sys
 # ── Config ──────────────────────────────────────────────────────────────────
 CREDENTIALS_FILE = "credentials.json"
 SPREADSHEET_NAME = "Outback Pay Logging"
-CALENDAR_KEYWORD = "Hotschedules"  # script checks if today's event title contains this
+CALENDAR_KEYWORD = "Hotschedules"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -32,13 +32,14 @@ def is_work_day():
     time_max = datetime.combine(today, datetime.max.time()).isoformat() + "Z"
 
     events_result = service.events().list(
-        calendarId="primary",
+        calendarId="achen.w342@gmail.com",
         timeMin=time_min,
         timeMax=time_max,
         singleEvents=True,
         orderBy="startTime",
     ).execute()
 
+    print(events_result)
     events = events_result.get("items", [])
 
     for event in events:
@@ -219,7 +220,7 @@ def main():
     # Check Google Calendar for a shift today
     if not is_work_day():
         print("Today is not a workday. Enjoy the break!")
-        #sys.exit(0)  # Not a work day — exit silently
+        sys.exit(0)
 
     # Connect to Sheets
     gc = gspread.service_account(filename=CREDENTIALS_FILE)
