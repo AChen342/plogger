@@ -60,15 +60,26 @@ def mainScreen():
 
 
 def checkNewWeek(prevDate):
-    currDate = datetime.now()
+    today = datetime.now()
 
     prevDateWeek = (prevDate.isocalendar()[0], prevDate.isocalendar()[1])
-    currDateWeek = (currDate.isocalendar()[0], currDate.isocalendar()[1])
+    currDateWeek = (today.isocalendar()[0], today.isocalendar()[1])
 
     if prevDateWeek != currDateWeek:
         return True
     
     return False
+
+
+def checkNewMonth(prevDate):
+    today = datetime.now()
+    return (today.year, today.month) != (prevDate.year, prevDate.month)
+
+
+def checkNewYear(last_date):
+    today = datetime.now()
+    return today.year != last_date.year
+
 
 
 def weeklyLogs(weeklySheet, dfWeekly, df):
@@ -118,12 +129,90 @@ def weeklyLogs(weeklySheet, dfWeekly, df):
     print("Weekly updated!")
 
 
-def monthlyLogs():
-    pass
+def monthlyLogs(monthlySheet, dfMonthly, df):
+    if not checkNewMonth(datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")):
+        return
+
+    temp_df = df.copy()
+    temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
+
+    # If monthly sheet has entries, only calculate from last entry onwards
+    if not dfMonthly.empty:
+        last_month_ending = pd.to_datetime(dfMonthly.iloc[-1]["Month"], format="%m/%Y")
+        temp_df = temp_df[temp_df['Date'] > last_month_ending]
+
+    if temp_df.empty:
+        print("No new months to add.")
+        return
+
+    monthly = temp_df.groupby(pd.Grouper(key="Date", freq='MS')).agg({
+        'Hours'     : 'sum',
+        'Card'      : 'sum',
+        'Cash'      : 'sum',
+        'Total Tip' : 'sum'
+    }).reset_index()
+
+    # drop empty months
+    monthly = monthly[monthly['Hours'] > 0]
+
+    # drop current incomplete month
+    today = pd.Timestamp.now()
+    monthly = monthly[monthly['Date'].dt.month != today.month]
+
+    # format
+    monthly['Date']      = monthly['Date'].dt.strftime('%m/%Y')
+    monthly              = monthly.rename(columns={'Date': 'Month'})
+    monthly['Card']      = monthly['Card'].round(2)
+    monthly['Cash']      = monthly['Cash'].round(2)
+    monthly['Total Tip'] = monthly['Total Tip'].round(2)
+
+    # append to existing entries
+    updated_dfMonthly = pd.concat([dfMonthly, monthly], ignore_index=True)
+    set_with_dataframe(monthlySheet, updated_dfMonthly, include_index=False, resize=True)
+    print("Monthly updated!")
 
 
-def yearlyLogs():
-    pass
+def yearlyLogs(yearlySheet, dfYearly, df):
+    if not checkNewYear(datetime.strptime(df['Date'].iloc[-1], "%m/%d/%Y")):
+        return
+
+    temp_df = df.copy()
+    temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
+
+    # If yearly sheet has entries, only calculate from last entry onwards
+    if not dfYearly.empty:
+        last_year = pd.to_datetime(dfYearly.iloc[-1]["Year"], format="%Y")
+        temp_df = temp_df[temp_df['Date'].dt.year > last_year.year]
+
+    if temp_df.empty:
+        print("No new years to add.")
+        return
+
+    yearly = temp_df.groupby(pd.Grouper(key="Date", freq='YS')).agg({
+        'Hours'     : 'sum',
+        'Card'      : 'sum',
+        'Cash'      : 'sum',
+        'Total Tip' : 'sum'
+    }).reset_index()
+
+    # drop empty years
+    yearly = yearly[yearly['Hours'] > 0]
+
+    # drop current incomplete year
+    today = pd.Timestamp.now()
+    yearly = yearly[yearly['Date'].dt.year != today.year]
+
+    # format
+    yearly['Date']      = yearly['Date'].dt.strftime('%Y')
+    yearly              = yearly.rename(columns={'Date': 'Year'})
+    yearly['Card']      = yearly['Card'].round(2)
+    yearly['Cash']      = yearly['Cash'].round(2)
+    yearly['Total Tip'] = yearly['Total Tip'].round(2)
+
+    # append to existing entries
+    updated_dfYearly = pd.concat([dfYearly, yearly], ignore_index=True)
+    set_with_dataframe(yearlySheet, updated_dfYearly, include_index=False, resize=True)
+    print("Yearly updated!")
 
 
 def viewLogs(df):
@@ -424,6 +513,8 @@ def main():
     
     # update weekly, monthly, and yearly tabs
     weeklyLogs(weeklySheet, dfWeekly, df)
+    monthlyLogs(monthlySheet, dfMonthly, df)
+    yearlyLogs(yearlySheet, dfYearly, df)
 
     while True:
         mainScreen()
