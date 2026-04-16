@@ -49,16 +49,6 @@ def is_work_day():
     return False
 
 
-def mainScreen():
-    print("Pay Logger")
-    print("What would you like to do? (Enter number)")
-    print("1. Add New Log")
-    print("2. View Logs")
-    print("3. Delete Log")
-    print("4. Add Payday")
-    print("5. Done")
-
-
 def checkNewWeek(prevDate):
     today = datetime.now()
 
@@ -214,6 +204,10 @@ def yearlyLogs(yearlySheet, dfYearly, df):
     set_with_dataframe(yearlySheet, updated_dfYearly, include_index=False, resize=True)
     print("Yearly updated!")
 
+
+# ---------------------------------------------------------------------------
+# User interaction helpers
+# ---------------------------------------------------------------------------
 
 def viewLogs(df):
     run = True
@@ -480,6 +474,17 @@ def addPayDay(df, dfPayDay, payDaySheet):
             break
             
     return updated_dfPayDay
+
+
+def mainScreen():
+    print("Pay Logger")
+    print("What would you like to do? (Enter number)")
+    print("1. Add New Log")
+    print("2. View Logs")
+    print("3. Delete Log")
+    print("4. Add Payday")
+    print("5. Done")
+
 
 def main():
     # Check Google Calendar for a shift today
