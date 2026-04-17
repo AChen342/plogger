@@ -233,8 +233,37 @@ class ViewLogs(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        tk.Button(self, text="Back",
-                  command=lambda : master.show_frame(HomeScreen)).pack()
+        inner = tk.Frame(self)
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+
+        # make single-column layout truly centered
+        inner.grid_columnconfigure(0, weight=1)
+
+        # display current logs
+        self.display = tk.Text(inner, height=21, width=50)
+        self.display.grid(row=0, column=0, pady=10)
+        self.display.config(state="disabled")
+
+        # buttons (all same width for alignment)
+        tk.Button(inner, text="View Tips Logs", width=25)\
+            .grid(row=1, column=0, pady=3)
+
+        tk.Button(inner, text="View Weekly Logs", width=25)\
+            .grid(row=2, column=0, pady=3)
+
+        tk.Button(inner, text="View Monthly Logs", width=25)\
+            .grid(row=3, column=0, pady=3)
+
+        tk.Button(inner, text="View Yearly Logs", width=25)\
+            .grid(row=4, column=0, pady=3)
+
+        tk.Button(inner, text="View Payday Logs", width=25)\
+            .grid(row=5, column=0, pady=3)
+
+        # back button
+        tk.Button(inner, text="Back", width=25,
+                  command=lambda: master.show_frame(HomeScreen))\
+            .grid(row=6, column=0, pady=10)
 
 class DeleteLogs(tk.Frame):
     def __init__(self, master):
