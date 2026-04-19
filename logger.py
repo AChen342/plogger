@@ -1,6 +1,6 @@
 import gspread
 import pandas as pd
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 
 CREDENTIALS_FILE = "credentials.json"
@@ -44,16 +44,13 @@ class Logger():
         
         return False
 
-
     def checkNewMonth(self, prevDate):
         today = datetime.now()
         return (today.year, today.month) != (prevDate.year, prevDate.month)
 
-
     def checkNewYear(self, last_date):
         today = datetime.now()
         return today.year != last_date.year
-
 
     def aggregateLogs(self, sheet, dfAgg, df, freq, colName, dateFmt):
         if df.empty:
@@ -119,9 +116,44 @@ class Logger():
         set_with_dataframe(sheet, updated, include_index=False, resize=True)
         print(f"{colName} updated!")
 
-    def displayTipLogs(self):
+    def viewLast20TipLogs(self):
         return str(self.df.tail(20))
 
+    def viewAllTipLogs(self):
+        with pd.option_context('display.max_rows', None):
+            text = str(self.df)
+        
+        pd.reset_option('display.max_rows')
+        return text
+    
+    def viewAllWeeklyLogs(self):
+        with pd.option_context('display.max_rows', None):
+            text = str(self.dfWeekly)
+        
+        pd.reset_option('display.max_rows')
+        return text
+    
+    def viewAllMonthlyLogs(self):
+        with pd.option_context('display.max_rows', None):
+            text = str(self.dfMonthly)
+
+        pd.reset_option('display.max_rows')
+        return text
+    
+    def viewAllYearlyLogs(self):
+        with pd.option_context('display.max_rows', None):
+            text = str(self.dfYearly)
+        
+        pd.reset_option('display.max_rows')
+        return text
+    
+    def viewAllPaydayLogs(self):
+        with pd.option_context('display.max_rows', None):
+            text = str(self.dfPayDay)
+
+        pd.reset_option('display.max_rows')
+        return text
+    
     def sortByDate(self, df):
         temp_df = df.copy()
         temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
@@ -129,57 +161,6 @@ class Logger():
         temp_df["Date"] = temp_df["Date"].dt.strftime("%m/%d/%Y")
 
         return temp_df
-
-    def viewLogs(self, df):
-        run = True
-        while run:
-            print("Which log would you like to view? (Enter number)")
-            print("1. First few logs (shows first 10)")
-            print("2. Recent few logs (shows recent 10)")
-            print("3. Specific date")
-            print("4. Show logs in range")
-            print("5. Back")
-
-            option = input()
-
-            print("="*100)
-
-            if option == "1":
-                print(df.head(10))
-
-            elif option == "2":
-                print(df.tail(10))
-
-            elif option == "3":
-                print("Enter date of log (MM/DD/YYYY):")
-                day = input().strip()
-                print(df[df["Date"] == day])
-
-            elif option == "4":
-                print("Enter start date (MM/DD/YYYY): ")
-                start = input().strip()
-
-                print("Enter end date (MM/DD/YYYY): ")
-                end = input().strip()
-
-                # Work on a copy so the original df is never mutated
-                temp_df = df.copy()
-                temp_df['Date'] = pd.to_datetime(temp_df['Date'], format='%m/%d/%Y')
-                startDate = pd.to_datetime(start, format='%m/%d/%Y')
-                endDate = pd.to_datetime(end, format='%m/%d/%Y')
-
-                mask = (temp_df['Date'] >= startDate) & (temp_df['Date'] <= endDate)
-                filtered_df = temp_df.loc[mask].sort_values("Date").copy()
-
-                filtered_df['Date'] = filtered_df['Date'].dt.strftime('%m/%d/%Y')
-
-                print(filtered_df)
-
-            elif option == "5":
-                run = False
-
-            print("="*100)
-
 
     def addTip(self, newEntry):
         day, card, cash, hours = newEntry
@@ -199,51 +180,10 @@ class Logger():
 
         set_with_dataframe(self.worksheet, sorted_df, include_index=False, resize=True)
         self.df = sorted_df
-        
 
-    def deleteLog(self, df, worksheet):
-        print("="*100)
-        print(f"Recent logs:\n{df.tail(10)}")
-        print("="*100)
-
-        while True:
-            day = input("Enter date of log to delete (MM/DD/YYYY): ").strip()
-            try:
-                datetime.strptime(day, "%m/%d/%Y")
-                break
-            except ValueError:
-                print("Invalid date. Please use MM/DD/YYYY.")
-
-        if df[df['Date'] == day].empty:
-            print(f"No log found for {day}. Deletion cancelled.")
-            return df
-
-        while True:
-            confirm = input(f"You want to delete the log for {day}? Please answer y/n: ").strip().lower()
-            if confirm == "y" or confirm == "n":
-                break
-
-        if confirm == "y":
-            try:
-                indices_to_drop = df[df['Date'] == day].index
-                updated_df = df.drop(indices_to_drop).reset_index(drop=True)
-            except Exception as e:
-                print(e)
-                return df
-
-            set_with_dataframe(worksheet, updated_df, include_index=False, resize=True)
-
-            print("="*100)
-            print(f"Successfully deleted log for {day}!")
-            print(updated_df.tail(10))
-            print("="*100)
-
-            return updated_df
-
-        else:
-            print("Deletion cancelled.")
-            return df
-
+    def deleteLog(self, index):
+        self.df = self.df.drop(index)
+        set_with_dataframe(self.worksheet, self.df, include_index=False, resize=True)
 
     def addPayDay(self, df, dfPayDay, payDaySheet):
         while True:
@@ -297,7 +237,6 @@ class Logger():
                     break
             
             if confirm == "y":
-                # Work on a copy so the original df is never mutated
                 temp_df = df.copy()
                 temp_df['Date'] = pd.to_datetime(temp_df['Date'], format='%m/%d/%Y')
                 startDate = pd.to_datetime(start, format='%m/%d/%Y')

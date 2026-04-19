@@ -29,9 +29,6 @@ class HomeScreen(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        inner = tk.Frame(self)
-        inner.place(relx=0.5, rely=0.5, anchor="center")
-
         titleLabel = tk.Label(self, text="Pay Logger", font=("Arial", 16))
         titleLabel.pack(pady=10)
 
@@ -222,7 +219,7 @@ class NewLog(tk.Frame):
         self.refreshDisplay()
 
     def refreshDisplay(self):
-        currLogs = self.master.logger.displayTipLogs()
+        currLogs = self.master.logger.viewLast20TipLogs()
 
         self.display.config(state="normal")
         self.display.delete("1.0", tk.END)
@@ -236,42 +233,167 @@ class ViewLogs(tk.Frame):
         inner = tk.Frame(self)
         inner.place(relx=0.5, rely=0.5, anchor="center")
 
-        # make single-column layout truly centered
         inner.grid_columnconfigure(0, weight=1)
 
-        # display current logs
-        self.display = tk.Text(inner, height=21, width=50)
-        self.display.grid(row=0, column=0, pady=10)
+        text_frame = tk.Frame(inner)
+        text_frame.grid(row=0, column=0, pady=10)
+
+        self.display = tk.Text(text_frame, height=21, width=80, wrap="none")
+        self.display.grid(row=0, column=0)
+
         self.display.config(state="disabled")
 
-        # buttons (all same width for alignment)
-        tk.Button(inner, text="View Tips Logs", width=25)\
+        # Vertical scrollbar
+        v_scrollbar = tk.Scrollbar(
+            text_frame,
+            orient="vertical",
+            command=self.display.yview
+        )
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+
+        # Horizontal scrollbar
+        h_scrollbar = tk.Scrollbar(
+            text_frame,
+            orient="horizontal",
+            command=self.display.xview
+        )
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        # Link scrollbars to text widget
+        self.display.config(
+            yscrollcommand=v_scrollbar.set,
+            xscrollcommand=h_scrollbar.set
+        )
+
+        # Make horizontal scrollbar stretch
+        text_frame.grid_columnconfigure(0, weight=1)
+
+        tk.Button(inner, text="View Tips Logs",
+                  command=lambda: self.displayLogs(self.master.logger.viewAllTipLogs()), width=25)\
             .grid(row=1, column=0, pady=3)
 
-        tk.Button(inner, text="View Weekly Logs", width=25)\
+        tk.Button(inner, text="View Weekly Logs",
+                  command=lambda: self.displayLogs(self.master.logger.viewAllWeeklyLogs()), width=25)\
             .grid(row=2, column=0, pady=3)
 
-        tk.Button(inner, text="View Monthly Logs", width=25)\
+        tk.Button(inner, text="View Monthly Logs",
+                  command=lambda: self.displayLogs(self.master.logger.viewAllMonthlyLogs()), width=25)\
             .grid(row=3, column=0, pady=3)
 
-        tk.Button(inner, text="View Yearly Logs", width=25)\
+        tk.Button(inner, text="View Yearly Logs",
+                  command=lambda: self.displayLogs(self.master.logger.viewAllYearlyLogs()), width=25)\
             .grid(row=4, column=0, pady=3)
 
-        tk.Button(inner, text="View Payday Logs", width=25)\
+        tk.Button(inner, text="View Payday Logs",
+                  command=lambda: self.displayLogs(self.master.logger.viewAllPaydayLogs()), width=25)\
             .grid(row=5, column=0, pady=3)
 
-        # back button
         tk.Button(inner, text="Back", width=25,
                   command=lambda: master.show_frame(HomeScreen))\
             .grid(row=6, column=0, pady=10)
 
+    def displayLogs(self, text):
+        self.display.config(state="normal")
+        self.display.delete("1.0", tk.END)
+        self.display.insert(tk.END, text)
+        self.display.config(state="disabled")
+
 class DeleteLogs(tk.Frame):
+    # Column widths
+    COL_DATE  = 14
+    COL_HOURS = 10
+    COL_CARD  = 10
+    COL_CASH  = 10
+    COL_TOTAL = 10
+
     def __init__(self, master):
         super().__init__(master)
+        self.master = master
+        self._index_map = []
 
-        tk.Button(self, text="Back",
-                  command=lambda : master.show_frame(HomeScreen)).pack()
-        
+        inner = tk.Frame(self)
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+
+        listBoxFrame = tk.Frame(inner)
+        listBoxFrame.grid(row=0, column=0, pady=10)
+
+        # Header label
+        self.header = tk.Label(
+            listBoxFrame,
+            text=self._formatRow("Date", "Hours", "Card", "Cash", "Total"),
+            font=("Courier", 10, "bold"),
+            anchor="w",
+            justify="left"
+        )
+        self.header.grid(row=0, column=0, sticky="w")
+
+        # Listbox
+        self.log_list = tk.Listbox(listBoxFrame, width=80, height=20, font=("Courier", 10))
+        self.log_list.grid(row=1, column=0)
+
+        # Scrollbars
+        v_scroll = tk.Scrollbar(listBoxFrame, orient="vertical", command=self.log_list.yview)
+        v_scroll.grid(row=1, column=1, sticky="ns")
+
+        h_scroll = tk.Scrollbar(listBoxFrame, orient="horizontal", command=self.log_list.xview)
+        h_scroll.grid(row=2, column=0, sticky="ew")
+
+        self.log_list.config(
+            yscrollcommand=v_scroll.set,
+            xscrollcommand=h_scroll.set
+        )
+
+        listBoxFrame.grid_columnconfigure(0, weight=1)
+
+        # Buttons
+        tk.Button(inner, text="Load Logs", width=25,
+                  command=self.loadLogs).grid(row=1, column=0, pady=5)
+
+        tk.Button(inner, text="Delete Selected", width=25,
+                  command=self.deleteSelected).grid(row=2, column=0, pady=5)
+
+        tk.Button(inner, text="Back", width=25,
+                  command=lambda: master.show_frame(HomeScreen)).grid(row=3, column=0, pady=10)
+
+    def _formatRow(self, date, hours, card, cash, total):
+        """Format a row with fixed-width columns so everything lines up."""
+        return (
+            f"{str(date):<{self.COL_DATE}}"
+            f"{str(hours):<{self.COL_HOURS}}"
+            f"{str(card):<{self.COL_CARD}}"
+            f"{str(cash):<{self.COL_CASH}}"
+            f"{str(total):<{self.COL_TOTAL}}"
+        )
+
+    def loadLogs(self):
+        self.log_list.delete(0, tk.END)
+        logs = self.master.logger.df
+
+        for i, row in logs.iterrows():
+            line = self._formatRow(
+                row['Date'],
+                row['Hours'],
+                row['Card'],
+                row['Cash'],
+                row['Total Tip']
+            )
+            self.log_list.insert(tk.END, line)
+
+        self._index_map = list(logs.index)
+
+    def deleteSelected(self):
+        selected = self.log_list.curselection()
+        if not selected:
+            return
+
+        listbox_pos = selected[0]
+        df_index = self._index_map[listbox_pos]
+
+        self.log_list.delete(listbox_pos)
+        self._index_map.pop(listbox_pos)
+
+        self.master.logger.deleteLog(df_index)
+
 class NewPayDay(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
