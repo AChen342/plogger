@@ -148,10 +148,14 @@ class Logger():
         return text
     
     def viewAllPaydayLogs(self):
-        with pd.option_context('display.max_rows', None):
+        with pd.option_context('display.max_rows', None, 
+                               'display.max_columns', None,
+                               'display.width', 10000):
+
             text = str(self.dfPayDay)
 
         pd.reset_option('display.max_rows')
+        pd.reset_option('display.max_columns')
         return text
     
     def sortByDate(self, df):
