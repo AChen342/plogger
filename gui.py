@@ -12,6 +12,12 @@ class App(tk.Tk):
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
+        
+        # validation cmds
+        self.monthCmd = (self.register(self.checkMonth), "%P")
+        self.dayCmd = (self.register(self.checkDay), "%P")
+        self.yearCmd = (self.register(self.checkYear), "%P")
+        self.moneyCmd = (self.register(self.checkMoney), "%P")
 
         self.frames = {}
         pages = (HomeScreen, NewLog, ViewLogs, DeleteLogs, NewPayDay)
@@ -24,6 +30,73 @@ class App(tk.Tk):
 
     def show_frame(self, page):
         self.frames[page].tkraise()
+
+    # validation functions
+    def checkMonth(self, month):
+        if month == "":
+            return True
+        
+        if not month.isdigit():
+            return False
+        
+        if len(month) > 2:
+            return False
+        
+        month = int(month)
+        return 1 <= month <= 12
+
+    def checkDay(self, day):
+        if day == "":
+            return True
+        
+        if not day.isdigit():
+            return False
+        
+        if len(day) > 2:
+            return False
+        
+        day = int(day)
+        return 1 <= day <= 31
+
+    def checkYear(self, year):
+        if year == "":
+            return True
+        
+        if not year.isdigit():
+            return False
+        
+        if len(year) > 4:
+            return False
+        
+        return True
+
+    def checkMoney(self, amount):
+        if amount == "":
+            return True
+        
+        if amount.count(".") > 1:
+            return False
+        
+        try:
+            float(amount)
+        except ValueError:
+            return False
+        
+        if "." in amount:
+            decimals = amount.split(".")[1]
+            if len(decimals) > 2:
+                return False
+            
+        return True
+    
+    def validateFullDate(self, month, day, year):
+        try:
+            date = datetime.strptime(f"{month}/{day}/{year}", "%m/%d/%Y")
+        except ValueError:
+            return None
+
+        return date
+
         
 class HomeScreen(tk.Frame):
     def __init__(self, master):
@@ -59,37 +132,6 @@ class NewLog(tk.Frame):
         inner.grid_columnconfigure(0, weight=1)
         inner.grid_columnconfigure(1, weight=1) 
         
-        # validation functions
-        def checkMonth(month):
-            if month == "":
-                return True
-
-            if not month.isdigit():
-                return False
-
-            if len(month) > 2:
-                return False
-
-            month = int(month)
-            return 1 <= month <= 12
-
-        monthCmd = (self.register(checkMonth), "%P")
-       
-        def checkDay(day):
-            if day == "":
-                return True
-
-            if not day.isdigit():
-                return False
-
-            if len(day) > 2:
-                return False
-
-            day = int(day)
-            return 1 <= day <= 31
-        
-        dayCmd = (self.register(checkDay), "%P")
-
         # used to show current logs
         self.display = tk.Text(inner, height=21, width=50)
         self.display.grid(row=0, column=0, columnspan=2, pady=10)
@@ -97,73 +139,38 @@ class NewLog(tk.Frame):
         self.refreshDisplay()
 
         tk.Label(inner, text="Enter Date:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        date_frame = tk.Frame(inner)
-        date_frame.grid(row=1, column=1, sticky="w")
-
-        def checkYear(value):
-            if value == "":
-                return True
-
-            if not value.isdigit():
-                return False
-
-            if len(value) > 4:
-                return False
-
-            return True
-        
-        yearCmd = (self.register(checkYear), "%P")
-
-        def validateMoney(value):
-            if value == "":
-                return True
-
-            if value.count(".") > 1:
-                return False
-            
-            try:
-                float(value)
-            except ValueError:
-                return False
-            
-            if "." in value:
-                decimals = value.split(".")[1]
-                if len(decimals) > 2:
-                    return False
-            
-            return True
-
-        checkMoney = (self.register(validateMoney), "%P")
+        dateFrame = tk.Frame(inner)
+        dateFrame.grid(row=1, column=1, sticky="w")
 
         # enter month
-        self.month = tk.Entry(date_frame, width=3, validate="key", validatecommand=monthCmd)
+        self.month = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
         self.month.pack(side=tk.LEFT)
 
-        tk.Label(date_frame, text="/").pack(side=tk.LEFT)
+        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
 
         # enter day
-        self.day = tk.Entry(date_frame, width=3, validate="key", validatecommand=dayCmd)
+        self.day = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
         self.day.pack(side=tk.LEFT)
 
-        tk.Label(date_frame, text="/").pack(side=tk.LEFT)
+        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
 
         # enter year
-        self.year = tk.Entry(date_frame, width=5, validate="key", validatecommand=yearCmd)
+        self.year = tk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
         self.year.pack(side=tk.LEFT)
 
         # enter card tip
         tk.Label(inner, text="Enter card tip:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-        self.cardTip = tk.Entry(inner, width=30, validate="key", validatecommand=checkMoney)
+        self.cardTip = tk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
         self.cardTip.grid(row=2, column=1, sticky="w", padx=5, pady=5)
 
         # enter cash tip
         tk.Label(inner, text="Enter cash tip:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
-        self.cashTip = tk.Entry(inner, width=30, validate="key", validatecommand=checkMoney)
+        self.cashTip = tk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
         self.cashTip.grid(row=3, column=1, sticky="w", padx=5, pady=5)
 
         # enter hours
         tk.Label(inner, text="Enter hours worked:").grid(row=4, column=0, sticky="e", padx=5, pady=5)
-        self.hours = tk.Entry(inner, width=30, validate="key", validatecommand=checkMoney)
+        self.hours = tk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
         self.hours.grid(row=4, column=1, sticky="w", padx=5, pady=5)
 
         # submit button
@@ -174,8 +181,8 @@ class NewLog(tk.Frame):
                   command=lambda: master.show_frame(HomeScreen)).grid(row=5, column=1, pady=10)
 
         # error messages
-        self.message = tk.Label(inner, text="", fg="red")
-        self.message.grid(row=6, column=0, columnspan=2)
+        self.errMessage = tk.Label(inner, text="", fg="red")
+        self.errMessage.grid(row=6, column=0, columnspan=2)
     
     def submitLog(self):
         month = self.month.get()
@@ -188,14 +195,13 @@ class NewLog(tk.Frame):
 
         # Check empty fields
         if not (month and day and year and card and cash and hours):
-            self.message.config(text="*Please fill in all fields!")
+            self.errMessage.config(text="*Please fill in all fields!")
             return
 
-        # Validate full date
-        try:
-            date = datetime.strptime(f"{month}/{day}/{year}", "%m/%d/%Y")
-        except ValueError:
-            self.message.config(text="*Invalid date!")
+        # check full date        
+        date = self.master.validateFullDate(month, day, year)
+        if date is None:
+            self.errMessage.config(text="Invalid Date!")
             return
 
         # Convert numbers
@@ -207,7 +213,10 @@ class NewLog(tk.Frame):
 
         newEntry = (formatted_date, card, cash, hours)
         self.master.logger.addTip(newEntry)
+        self.clearEntries()
+        self.refreshDisplay()
 
+    def clearEntries(self):
         # clear entries and refresh display
         self.month.delete(0, tk.END)
         self.day.delete(0, tk.END)
@@ -216,8 +225,7 @@ class NewLog(tk.Frame):
         self.cardTip.delete(0, tk.END)
         self.cashTip.delete(0, tk.END)
         self.hours.delete(0, tk.END)
-        self.refreshDisplay()
-
+    
     def refreshDisplay(self):
         currLogs = self.master.logger.viewLast20TipLogs()
 
@@ -398,7 +406,155 @@ class NewPayDay(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        tk.Button(self, text="Back",
-                  command=lambda : master.show_frame(HomeScreen)).pack()
+        inner = tk.Frame(self)
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+        inner.grid_columnconfigure(0, weight=1)
+        inner.grid_columnconfigure(1, weight=1)
+
+        # show current payday logs
+        self.display = tk.Text(inner, height=21, width=80, wrap="none")
+        self.display.grid(row=0, column=0, columnspan=2, pady=10)
+        self.display.config(state="disabled")
+        # display current payday logs
+        self.refreshDisplay()
+        
+        # date frame
+        tk.Label(inner, text="Enter Start/End Dates:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+        dateFrame = tk.Frame(inner)
+        dateFrame.grid(row=1, column=1, sticky="w")
+
+        # start date month
+        self.startMonth = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
+        self.startMonth.pack(side=tk.LEFT)
+
+        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
+
+        # start date day
+        self.startDay = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
+        self.startDay.pack(side=tk.LEFT)
+
+        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
+
+        # start date year
+        self.startYear = tk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
+        self.startYear.pack(side=tk.LEFT)
+
+        tk.Label(dateFrame, text=" to ").pack(side=tk.LEFT)
+        
+        #end date month
+        self.endMonth = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
+        self.endMonth.pack(side=tk.LEFT)
+
+        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
+
+        # end  date day
+        self.endDay = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
+        self.endDay.pack(side=tk.LEFT)
+
+        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
+
+        # end date year
+        self.endYear = tk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
+        self.endYear.pack(side=tk.LEFT)
+
+        # gross pay
+        tk.Label(inner, text="Enter Gross Pay:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+        self.grossPay = tk.Entry(inner, width=15, validate="key", validatecommand=self.master.moneyCmd)
+        self.grossPay.grid(row=2, column=1, sticky="w", padx=5, pady=5)
+
+        # tax amount
+        tk.Label(inner, text="Enter Tax Taken:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
+        self.taxAmount = tk.Entry(inner, width=15, validate="key", validatecommand=self.master.moneyCmd)
+        self.taxAmount.grid(row=3, column=1, sticky="w", padx=5, pady=5)
+
+        # frame for buttons
+        btnFrame = tk.Frame(inner)
+        btnFrame.grid(row=4, column=0, columnspan=2, pady=10)
+
+        # submit button
+        tk.Button(btnFrame, text="Submit", command=self.submitLog).pack(side=tk.LEFT, padx=5)
+
+        # back button
+        tk.Button(btnFrame, text="Back",
+                  command=lambda : master.show_frame(HomeScreen)).pack(side=tk.LEFT, padx=5)
+
+        # error messages
+        self.errMessage = tk.Label(inner, text="", fg="red")
+        self.errMessage.grid(row=6, column=0, columnspan=2)
+    
+    def checkFormFilled(self):
+        if not (self.startMonth.get() and self.startDay.get() and self.startYear.get()):
+            self.errMessage.config(text="*Please fill in start date!")
+            return False
+        
+        if not (self.endMonth.get() and self.endDay.get() and self.endYear.get()):
+            self.errMessage.config(text="*Please fill in end date!")
+            return False
+
+        if not self.grossPay.get():
+            self.errMessage.config(text="*Please enter gross pay amount!")
+            return False
+        
+        if not self.taxAmount.get():
+            self.errMessage.config(text="*Please enter tax amount!")
+            return False
+
+        return True
+    
+    def clearEntries(self):
+        self.startMonth.delete(0, tk.END)
+        self.startDay.delete(0, tk.END)
+        self.startYear.delete(0, tk.END)
+
+        self.endMonth.delete(0, tk.END)
+        self.endDay.delete(0, tk.END)
+        self.endYear.delete(0, tk.END)
+
+        self.grossPay.delete(0, tk.END)
+        self.taxAmount.delete(0, tk.END)
+
+    def refreshDisplay(self):
+        currLogs = self.master.logger.viewLast20PayDayLogs()
+
+        self.display.config(state="normal")
+        self.display.delete("1.0", tk.END)
+        self.display.insert(tk.END, currLogs)
+        self.display.config(state="disabled")
+
+    def submitLog(self):
+        # check if form is filled
+        if not self.checkFormFilled():
+            return
+        
+        # check full start date
+        fullStartDate = self.master.validateFullDate(self.startMonth.get(), 
+                                               self.startDay.get(),
+                                               self.startYear.get())
+        
+        if fullStartDate is None:
+            self.errMessage.config(text="Invalid Start Date!")
+            return
+        
+        # check full end date
+        fullEndDate = self.master.validateFullDate(self.endMonth.get(),
+                                             self.endDay.get(),
+                                             self.endYear.get())
+
+        if fullEndDate is None:
+            self.errMessage.config(text="Invalid End Date!")
+            return
+
+        # convert gross pay and tax amount to float
+        gross = float(self.grossPay.get())
+        tax = float(self.taxAmount.get())
+
+        newEntry = (fullStartDate, fullEndDate, gross, tax)
+        self.master.logger.addPayDay(newEntry)
+
+        # clear all entries after submission
+        self.clearEntries()
+        
+        # display update payday logs
+        self.refreshDisplay()
 
 App().mainloop()

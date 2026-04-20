@@ -14,19 +14,19 @@ class Logger():
         sh = gc.open(SPREADSHEET_NAME)
 
         # get each tab in sheets
-        self.worksheet = sh.get_worksheet(0)
+        self.worksheet = sh.worksheet('Daily')
         self.df = get_as_dataframe(self.worksheet).dropna(how='all')
 
-        self.weeklySheet = sh.get_worksheet(1)
+        self.weeklySheet = sh.worksheet('Weekly')
         self.dfWeekly = get_as_dataframe(self.weeklySheet).dropna(how='all')
 
-        self.monthlySheet = sh.get_worksheet(2)
+        self.monthlySheet = sh.worksheet('Monthly')
         self.dfMonthly = get_as_dataframe(self.monthlySheet).dropna(how='all')
 
-        self.yearlySheet = sh.get_worksheet(3)
+        self.yearlySheet = sh.worksheet('Yearly')
         self.dfYearly = get_as_dataframe(self.yearlySheet).dropna(how='all')
 
-        self.payDaySheet = sh.get_worksheet(4)
+        self.payDaySheet = sh.worksheet('Payday')
         self.dfPayDay = get_as_dataframe(self.payDaySheet).dropna(how='all')
 
         self.aggregateLogs(self.weeklySheet,  self.dfWeekly,  self.df, freq='W',   colName='Week Ending', dateFmt='%m/%d/%Y')
@@ -106,10 +106,10 @@ class Logger():
             return
 
         # Format
-        aggregated['Date']      = aggregated['Date'].dt.strftime(dateFmt)
-        aggregated              = aggregated.rename(columns={'Date': colName})
-        aggregated['Card']      = aggregated['Card'].round(2)
-        aggregated['Cash']      = aggregated['Cash'].round(2)
+        aggregated['Date'] = aggregated['Date'].dt.strftime(dateFmt)
+        aggregated = aggregated.rename(columns={'Date': colName})
+        aggregated['Card'] = aggregated['Card'].round(2)
+        aggregated['Cash'] = aggregated['Cash'].round(2)
         aggregated['Total Tip'] = aggregated['Total Tip'].round(2)
 
         updated = pd.concat([dfAgg, aggregated], ignore_index=True)
@@ -118,6 +118,14 @@ class Logger():
 
     def viewLast20TipLogs(self):
         return str(self.df.tail(20))
+    
+    def viewLast20PayDayLogs(self):
+        with pd.option_context('display.max_columns', None,
+                               'display.width', 10000):
+            text = str(self.dfPayDay.tail(20))
+        
+        pd.reset_option('display.max_columns')
+        return text
 
     def viewAllTipLogs(self):
         with pd.option_context('display.max_rows', None):
@@ -186,116 +194,52 @@ class Logger():
         self.df = sorted_df
 
     def deleteLog(self, index):
-        self.df = self.df.drop(index)
+        self.df = self.df.drop(index).reset_index(drop=True)
         set_with_dataframe(self.worksheet, self.df, include_index=False, resize=True)
 
-    def addPayDay(self, df, dfPayDay, payDaySheet):
-        while True:
-            dfPayDay = dfPayDay.dropna(how='all')
+    def addPayDay(self, newEntry):
+        start, end, gross, tax = newEntry
 
-            # get start date
-            if dfPayDay.empty or pd.isna(dfPayDay.iloc[-1]["End Date"]):
-                while True:
-                    start = input("Enter start date (MM/DD/YYYY): ").strip()
-                    try:
-                        datetime.strptime(start, "%m/%d/%Y")
-                        break
-                    except ValueError:
-                        print("Invalid date. Please use MM/DD/YYYY.")
-            else:
-                last_end_date = str(dfPayDay.iloc[-1]["End Date"])
-                start = (datetime.strptime(last_end_date, "%m/%d/%Y") + timedelta(days=1)).strftime("%m/%d/%Y")        
-            
-            # get end date
-            while True:
-                end = input("Enter end date (MM/DD/YYYY): ").strip()
-                try:
-                    datetime.strptime(end, "%m/%d/%Y")
-                    break
-                except ValueError:
-                    print("Invalid date. Please use MM/DD/YYYY.")
-            
-            # get gross pay
-            while True:
-                try:
-                    gross = round(float(input("Enter gross pay: ").strip()), 2)
-                    if gross >= 0:
-                        break
-                except ValueError:
-                    print("Invalid gross pay amount. Please enter a valid dollar amount.")
-            
-            # get tax
-            while True:
-                try:
-                    tax = round(float(input("Enter tax: ").strip()), 2)
-                    if tax >= 0:
-                        break
-                except ValueError:
-                    print("Invalid tax amount. Please enter a valid dollar amount.")
-        
-            while True:
-                print("Please confirm the following information:")
-                confirm = input(f"Start: {start}, End: {end}, Gross Pay: {gross}, Tax: {tax}\nPlease answer y/n: ")
-                
-                if confirm == "y" or confirm == "n":
-                    break
-            
-            if confirm == "y":
-                temp_df = df.copy()
-                temp_df['Date'] = pd.to_datetime(temp_df['Date'], format='%m/%d/%Y')
-                startDate = pd.to_datetime(start, format='%m/%d/%Y')
-                endDate = pd.to_datetime(end, format='%m/%d/%Y')
+        start = start.strftime("%m/%d/%Y")
+        end = end.strftime("%m/%d/%Y")
 
-                mask = (temp_df['Date'] >= startDate) & (temp_df['Date'] <= endDate)
-                filtered_df = temp_df.loc[mask].sort_values("Date").copy()
+        temp_df = self.df.copy()
+        temp_df['Date'] = pd.to_datetime(temp_df['Date'], format='%m/%d/%Y')
+        startDate = pd.to_datetime(start, format='%m/%d/%Y')
+        endDate = pd.to_datetime(end, format='%m/%d/%Y')
 
-                filtered_df['Date'] = filtered_df['Date'].dt.strftime('%m/%d/%Y')
+        mask = (temp_df['Date'] >= startDate) & (temp_df['Date'] <= endDate)
+        filtered_df = temp_df.loc[mask].sort_values("Date").copy()
 
-                # calculations
-                totalHours = round(filtered_df["Hours"].sum(), 2)
-                workdayPay = round(gross - tax, 2)
-                cardTotal = round(filtered_df["Card"].sum(), 2)
-                cashTotal = round(filtered_df["Cash"].sum(), 2)
-                totalTip = round(cardTotal + cashTotal, 2)
-                beforeTax = round(totalTip + gross, 2)
-                afterTax = round(beforeTax - tax, 2)
-                hourlyAfterTax = round(afterTax / totalHours, 2)
-                deviation = round(hourlyAfterTax - MIN_WAGE, 2)
+        filtered_df['Date'] = filtered_df['Date'].dt.strftime('%m/%d/%Y')
 
-                newLog = {
-                    "Start Date"                : start,
-                    "End Date"                  : end,
-                    "Total Hours"               : totalHours,
-                    "Gross Pay"                 : gross,
-                    "Tax"                       : tax,
-                    "Workday Pay"               : workdayPay,
-                    "Card Total"                : cardTotal,
-                    "Cash Total"                : cashTotal,
-                    "Tip Total"                 : totalTip,
-                    "Before Taxes"              : beforeTax,
-                    "After Taxes"               : afterTax,
-                    "Hourly Wage (After Taxes)" : hourlyAfterTax,
-                }
+        # calculations
+        totalHours = round(filtered_df["Hours"].sum(), 2)
+        workdayPay = round(gross - tax, 2)
+        cardTotal = round(filtered_df["Card"].sum(), 2)
+        cashTotal = round(filtered_df["Cash"].sum(), 2)
+        totalTip = round(cardTotal + cashTotal, 2)
+        beforeTax = round(totalTip + gross, 2)
+        afterTax = round(beforeTax - tax, 2)
+        hourlyAfterTax = round(afterTax / totalHours, 2)
 
-                new_row_df = pd.DataFrame([newLog])
-                updated_dfPayDay = pd.concat([dfPayDay, new_row_df], ignore_index=True)
+        newLog = {
+            "Start Date"                : start,
+            "End Date"                  : end,
+            "Total Hours"               : totalHours,
+            "Gross Pay"                 : gross,
+            "Tax"                       : tax,
+            "Workday Pay"               : workdayPay,
+            "Card Total"                : cardTotal,
+            "Cash Total"                : cashTotal,
+            "Tip Total"                 : totalTip,
+            "Before Taxes"              : beforeTax,
+            "After Taxes"               : afterTax,
+            "Hourly Wage (After Taxes)" : hourlyAfterTax,
+        }
 
-                set_with_dataframe(payDaySheet, updated_dfPayDay, include_index=False, resize=True)
+        new_row_df = pd.DataFrame([newLog])
+        updated_dfPayDay = pd.concat([self.dfPayDay, new_row_df], ignore_index=True)
 
-                # display
-                print("="*100)
-                print("Successfully added!\nSummary: ")
-                print(f"Between [{start}-{end}], you worked [{totalHours}hr(s)].")
-                print(f"In that time you earned [${afterTax}] after taxes ([${beforeTax}] before taxes).")
-                print(f"You earned [${cashTotal}] in cash tips and [${cardTotal}] in card tips")
-                print(f"Gross pay was [${gross}] and tax taken was [${tax}], which means you got [${workdayPay}] from Work Pay.")
-                print(f"Hourly wage after tax is [${hourlyAfterTax}], which is ", end="")
-                if deviation >= 0:
-                    print(f"${deviation} above the minimum wage (${MIN_WAGE}).\n")
-                else:
-                    print(f"${abs(deviation)} below the minimum wage (${MIN_WAGE}).\n")
-                print(updated_dfPayDay.tail(10))
-                print("="*100)
-                break
-                
-        return updated_dfPayDay
+        set_with_dataframe(self.payDaySheet, updated_dfPayDay, include_index=False, resize=True)
+        self.dfPayDay = updated_dfPayDay
