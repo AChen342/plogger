@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from gui import App
+import zoneinfo
 
 CALENDAR_KEYWORD = "Hotschedules"
 CREDENTIALS_FILE = "credentials.json"
@@ -20,9 +21,11 @@ def is_work_day():
     )
     service = build("calendar", "v3", credentials=creds)
 
-    today_utc = datetime.now(timezone.utc).date()
-    time_min = datetime.combine(today_utc, datetime.min.time(), tzinfo=timezone.utc).isoformat()
-    time_max = datetime.combine(today_utc, datetime.max.time(), tzinfo=timezone.utc).isoformat()
+    local_tz = zoneinfo.ZoneInfo("America/New_York")
+    today_local = datetime.now(local_tz).date()
+
+    time_min = datetime.combine(today_local, datetime.min.time(), tzinfo=local_tz).isoformat()
+    time_max = datetime.combine(today_local, datetime.max.time(), tzinfo=local_tz).isoformat()
 
     events_result = service.events().list(
         calendarId="achen.w342@gmail.com",
