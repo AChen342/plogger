@@ -116,56 +116,6 @@ class Logger():
         set_with_dataframe(sheet, updated, include_index=False, resize=True)
         print(f"{colName} updated!")
 
-    def viewLast20TipLogs(self):
-        return str(self.df.tail(20))
-    
-    def viewLast20PayDayLogs(self):
-        with pd.option_context('display.max_columns', None,
-                               'display.width', 10000):
-            text = str(self.dfPayDay.tail(20))
-        
-        pd.reset_option('display.max_columns')
-        return text
-
-    def viewAllTipLogs(self):
-        with pd.option_context('display.max_rows', None):
-            text = str(self.df)
-        
-        pd.reset_option('display.max_rows')
-        return text
-    
-    def viewAllWeeklyLogs(self):
-        with pd.option_context('display.max_rows', None):
-            text = str(self.dfWeekly)
-        
-        pd.reset_option('display.max_rows')
-        return text
-    
-    def viewAllMonthlyLogs(self):
-        with pd.option_context('display.max_rows', None):
-            text = str(self.dfMonthly)
-
-        pd.reset_option('display.max_rows')
-        return text
-    
-    def viewAllYearlyLogs(self):
-        with pd.option_context('display.max_rows', None):
-            text = str(self.dfYearly)
-        
-        pd.reset_option('display.max_rows')
-        return text
-    
-    def viewAllPaydayLogs(self):
-        with pd.option_context('display.max_rows', None, 
-                               'display.max_columns', None,
-                               'display.width', 10000):
-
-            text = str(self.dfPayDay)
-
-        pd.reset_option('display.max_rows')
-        pd.reset_option('display.max_columns')
-        return text
-    
     def sortByDate(self, df):
         temp_df = df.copy()
         temp_df['Date'] = pd.to_datetime(temp_df['Date'], format="%m/%d/%Y")
