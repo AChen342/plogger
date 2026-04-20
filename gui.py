@@ -400,3 +400,5 @@ class NewPayDay(tk.Frame):
 
         tk.Button(self, text="Back",
                   command=lambda : master.show_frame(HomeScreen)).pack()
+
+App().mainloop()

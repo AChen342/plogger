@@ -4,6 +4,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from gui import App
 import zoneinfo
+import logger
 
 CALENDAR_KEYWORD = "Hotschedules"
 CREDENTIALS_FILE = "credentials.json"
@@ -47,6 +48,7 @@ def is_work_day():
 def main():
     # Check Google Calendar for a shift today
     if not is_work_day():
+        logger.Logger()
         sys.exit(0)
     else:
         App().mainloop()
