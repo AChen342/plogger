@@ -1,14 +1,22 @@
 import tkinter as tk
+from tkinter import ttk
+from ttkthemes import ThemedTk
 import logger
 from datetime import datetime
 
-class App(tk.Tk):
+class App(ThemedTk):
+    # style
+    FONT_BOLD = ("Courier", 10, "bold")
+    FONT = ("Courier", 10)
+
+
     def __init__(self):
         super().__init__()
+        self.set_theme("yaru")
         self.logger = logger.Logger()
 
         self.title("Pay Logger")
-        self.geometry("800x600")
+        self.geometry("800x700")
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -98,7 +106,7 @@ class App(tk.Tk):
         return date
 
         
-class HomeScreen(tk.Frame):
+class HomeScreen(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
@@ -109,80 +117,106 @@ class HomeScreen(tk.Frame):
         promptLabel.pack(pady=10)
 
         # buttons
-        tk.Button(self, text="Add New Log", 
+        ttk.Button(self, text="Add New Log", 
                               command=lambda : master.show_frame(NewLog)).pack()
 
-        tk.Button(self, text="View Logs", 
+        ttk.Button(self, text="View Logs", 
                   command=lambda : master.show_frame(ViewLogs)).pack()
 
-        tk.Button(self, text="Delete Log",
+        ttk.Button(self, text="Delete Log",
                   command=lambda : master.show_frame(DeleteLogs)).pack()
 
-        tk.Button(self, text="Add Payday",
+        ttk.Button(self, text="Add Payday",
                     command=lambda : master.show_frame(NewPayDay)).pack()
         
-        tk.Button(self, text="Done", command=master.destroy).pack()
+        ttk.Button(self, text="Done", command=master.destroy).pack()
 
-class NewLog(tk.Frame):
+class NewLog(ttk.Frame):    
+    # Column widths
+    COL_DATE  = 14
+    COL_HOURS = 10
+    COL_CARD  = 10
+    COL_CASH  = 10
+    COL_TOTAL = 10
+
     def __init__(self, master):
         super().__init__(master)
 
-        inner = tk.Frame(self)
+        inner = ttk.Frame(self)
         inner.place(relx=0.5, rely=0.5, anchor="center")
         inner.grid_columnconfigure(0, weight=1)
         inner.grid_columnconfigure(1, weight=1) 
         
         # used to show current logs
-        self.display = tk.Text(inner, height=21, width=50)
+        self.display = tk.Text(inner, height=23, width=50, font=self.master.FONT)
         self.display.grid(row=0, column=0, columnspan=2, pady=10)
         self.display.config(state="disabled")
         self.refreshDisplay()
 
-        tk.Label(inner, text="Enter Date:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        dateFrame = tk.Frame(inner)
+        # Enter date for new log
+        tk.Label(inner, text="Enter Date:", font=self.master.FONT_BOLD).\
+            grid(row=1, column=0, sticky="e", padx=5, pady=5)
+        dateFrame = ttk.Frame(inner)
         dateFrame.grid(row=1, column=1, sticky="w")
 
         # enter month
-        self.month = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
+        self.month = ttk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
         self.month.pack(side=tk.LEFT)
 
-        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
+        tk.Label(dateFrame, text="/", font=self.master.FONT_BOLD).pack(side=tk.LEFT)
 
         # enter day
-        self.day = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
+        self.day = ttk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
         self.day.pack(side=tk.LEFT)
 
-        tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
+        tk.Label(dateFrame, text="/", font=self.master.FONT_BOLD).pack(side=tk.LEFT)
 
         # enter year
-        self.year = tk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
+        self.year = ttk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
         self.year.pack(side=tk.LEFT)
 
         # enter card tip
-        tk.Label(inner, text="Enter card tip:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-        self.cardTip = tk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
+        tk.Label(inner, text="Enter card tip:", font=self.master.FONT_BOLD).\
+            grid(row=2, column=0, sticky="e", padx=5, pady=5)
+        self.cardTip = ttk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
         self.cardTip.grid(row=2, column=1, sticky="w", padx=5, pady=5)
 
         # enter cash tip
-        tk.Label(inner, text="Enter cash tip:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
-        self.cashTip = tk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
+        tk.Label(inner, text="Enter cash tip:", font=self.master.FONT_BOLD).\
+            grid(row=3, column=0, sticky="e", padx=5, pady=5)
+        self.cashTip = ttk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
         self.cashTip.grid(row=3, column=1, sticky="w", padx=5, pady=5)
 
         # enter hours
-        tk.Label(inner, text="Enter hours worked:").grid(row=4, column=0, sticky="e", padx=5, pady=5)
-        self.hours = tk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
+        tk.Label(inner, text="Enter hours worked:", font=self.master.FONT_BOLD).\
+            grid(row=4, column=0, sticky="e", padx=5, pady=5)
+        self.hours = ttk.Entry(inner, width=30, validate="key", validatecommand=self.master.moneyCmd)
         self.hours.grid(row=4, column=1, sticky="w", padx=5, pady=5)
 
+        # button style 
+        btnStyle = ttk.Style()
+        btnStyle.configure("My.TButton", font=self.master.FONT_BOLD)
+
         # submit button
-        tk.Button(inner, text="Submit", command=self.submitLog).grid(row=5, column=0, pady=10)
+        ttk.Button(inner, text="Submit", style="My.TButton",
+                   command=self.submitLog).grid(row=5, column=0, pady=10)
 
         # back button
-        tk.Button(inner, text="Back", 
+        ttk.Button(inner, text="Back", style="My.TButton",
                   command=lambda: master.show_frame(HomeScreen)).grid(row=5, column=1, pady=10)
 
         # error messages
-        self.errMessage = tk.Label(inner, text="", fg="red")
+        self.errMessage = tk.Label(inner, text="", fg="red", font=self.master.FONT)
         self.errMessage.grid(row=6, column=0, columnspan=2)
+    
+    def formatRow(self, date, hours, card, cash, total):
+        return (
+            f"{str(date):<{self.COL_DATE}}"
+            f"{str(hours):<{self.COL_HOURS}}"
+            f"{str(card):<{self.COL_CARD}}"
+            f"{str(cash):<{self.COL_CASH}}"
+            f"{str(total):<{self.COL_TOTAL}}"
+        )
     
     def submitLog(self):
         month = self.month.get()
@@ -195,13 +229,13 @@ class NewLog(tk.Frame):
 
         # Check empty fields
         if not (month and day and year and card and cash and hours):
-            self.errMessage.config(text="*Please fill in all fields!")
+            self.errMessage.config(text="*Please fill in all fields!", font=self.master.FONT)
             return
 
         # check full date        
         date = self.master.validateFullDate(month, day, year)
         if date is None:
-            self.errMessage.config(text="Invalid Date!")
+            self.errMessage.config(text="Invalid Date!", font=self.master.FONT)
             return
 
         # Convert numbers
@@ -227,23 +261,40 @@ class NewLog(tk.Frame):
         self.hours.delete(0, tk.END)
     
     def refreshDisplay(self):
-        currLogs = self.master.logger.viewLast20TipLogs()
+        logs = self.master.logger.df.tail(10)
 
         self.display.config(state="normal")
         self.display.delete("1.0", tk.END)
-        self.display.insert(tk.END, currLogs)
+
+        # header
+        header = self.formatRow("Date", "Hours", "Card", "Cash", "Total")
+        self.display.tag_configure("header", font=self.master.FONT_BOLD)
+        self.display.insert(tk.END, header + "\n", "header")
+
+        # rows
+        for _, row in logs.iterrows():
+            line = self.formatRow(
+                row['Date'],
+                row['Hours'],
+                row['Card'],
+                row['Cash'],
+                row['Total Tip']
+
+            )
+            self.display.insert(tk.END, line + "\n")
+
         self.display.config(state="disabled")
 
-class ViewLogs(tk.Frame):
+class ViewLogs(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        inner = tk.Frame(self)
+        inner = ttk.Frame(self)
         inner.place(relx=0.5, rely=0.5, anchor="center")
 
         inner.grid_columnconfigure(0, weight=1)
 
-        text_frame = tk.Frame(inner)
+        text_frame = ttk.Frame(inner)
         text_frame.grid(row=0, column=0, pady=10)
 
         self.display = tk.Text(text_frame, height=21, width=80, wrap="none")
@@ -252,7 +303,7 @@ class ViewLogs(tk.Frame):
         self.display.config(state="disabled")
 
         # Vertical scrollbar
-        v_scrollbar = tk.Scrollbar(
+        v_scrollbar = ttk.Scrollbar(
             text_frame,
             orient="vertical",
             command=self.display.yview
@@ -260,7 +311,7 @@ class ViewLogs(tk.Frame):
         v_scrollbar.grid(row=0, column=1, sticky="ns")
 
         # Horizontal scrollbar
-        h_scrollbar = tk.Scrollbar(
+        h_scrollbar = ttk.Scrollbar(
             text_frame,
             orient="horizontal",
             command=self.display.xview
@@ -276,27 +327,27 @@ class ViewLogs(tk.Frame):
         # Make horizontal scrollbar stretch
         text_frame.grid_columnconfigure(0, weight=1)
 
-        tk.Button(inner, text="View Tips Logs",
+        ttk.Button(inner, text="View Tips Logs",
                   command=lambda: self.displayLogs(self.master.logger.viewAllTipLogs()), width=25)\
             .grid(row=1, column=0, pady=3)
 
-        tk.Button(inner, text="View Weekly Logs",
+        ttk.Button(inner, text="View Weekly Logs",
                   command=lambda: self.displayLogs(self.master.logger.viewAllWeeklyLogs()), width=25)\
             .grid(row=2, column=0, pady=3)
 
-        tk.Button(inner, text="View Monthly Logs",
+        ttk.Button(inner, text="View Monthly Logs",
                   command=lambda: self.displayLogs(self.master.logger.viewAllMonthlyLogs()), width=25)\
             .grid(row=3, column=0, pady=3)
 
-        tk.Button(inner, text="View Yearly Logs",
+        ttk.Button(inner, text="View Yearly Logs",
                   command=lambda: self.displayLogs(self.master.logger.viewAllYearlyLogs()), width=25)\
             .grid(row=4, column=0, pady=3)
 
-        tk.Button(inner, text="View Payday Logs",
+        ttk.Button(inner, text="View Payday Logs",
                   command=lambda: self.displayLogs(self.master.logger.viewAllPaydayLogs()), width=25)\
             .grid(row=5, column=0, pady=3)
 
-        tk.Button(inner, text="Back", width=25,
+        ttk.Button(inner, text="Back", width=25,
                   command=lambda: master.show_frame(HomeScreen))\
             .grid(row=6, column=0, pady=10)
 
@@ -306,7 +357,7 @@ class ViewLogs(tk.Frame):
         self.display.insert(tk.END, text)
         self.display.config(state="disabled")
 
-class DeleteLogs(tk.Frame):
+class DeleteLogs(ttk.Frame):
     # Column widths
     COL_DATE  = 14
     COL_HOURS = 10
@@ -319,10 +370,10 @@ class DeleteLogs(tk.Frame):
         self.master = master
         self._index_map = []
 
-        inner = tk.Frame(self)
+        inner = ttk.Frame(self)
         inner.place(relx=0.5, rely=0.5, anchor="center")
 
-        listBoxFrame = tk.Frame(inner)
+        listBoxFrame = ttk.Frame(inner)
         listBoxFrame.grid(row=0, column=0, pady=10)
 
         # Header label
@@ -340,10 +391,10 @@ class DeleteLogs(tk.Frame):
         self.log_list.grid(row=1, column=0)
 
         # Scrollbars
-        v_scroll = tk.Scrollbar(listBoxFrame, orient="vertical", command=self.log_list.yview)
+        v_scroll = ttk.Scrollbar(listBoxFrame, orient="vertical", command=self.log_list.yview)
         v_scroll.grid(row=1, column=1, sticky="ns")
 
-        h_scroll = tk.Scrollbar(listBoxFrame, orient="horizontal", command=self.log_list.xview)
+        h_scroll = ttk.Scrollbar(listBoxFrame, orient="horizontal", command=self.log_list.xview)
         h_scroll.grid(row=2, column=0, sticky="ew")
 
         self.log_list.config(
@@ -354,13 +405,13 @@ class DeleteLogs(tk.Frame):
         listBoxFrame.grid_columnconfigure(0, weight=1)
 
         # Buttons
-        tk.Button(inner, text="Load Logs", width=25,
+        ttk.Button(inner, text="Load Logs", width=25,
                   command=self.loadLogs).grid(row=1, column=0, pady=5)
 
-        tk.Button(inner, text="Delete Selected", width=25,
+        ttk.Button(inner, text="Delete Selected", width=25,
                   command=self.deleteSelected).grid(row=2, column=0, pady=5)
 
-        tk.Button(inner, text="Back", width=25,
+        ttk.Button(inner, text="Back", width=25,
                   command=lambda: master.show_frame(HomeScreen)).grid(row=3, column=0, pady=10)
 
     def _formatRow(self, date, hours, card, cash, total):
@@ -402,11 +453,11 @@ class DeleteLogs(tk.Frame):
 
         self.master.logger.deleteLog(df_index)
 
-class NewPayDay(tk.Frame):
+class NewPayDay(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        inner = tk.Frame(self)
+        inner = ttk.Frame(self)
         inner.place(relx=0.5, rely=0.5, anchor="center")
         inner.grid_columnconfigure(0, weight=1)
         inner.grid_columnconfigure(1, weight=1)
@@ -420,62 +471,62 @@ class NewPayDay(tk.Frame):
         
         # date frame
         tk.Label(inner, text="Enter Start/End Dates:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        dateFrame = tk.Frame(inner)
+        dateFrame = ttk.Frame(inner)
         dateFrame.grid(row=1, column=1, sticky="w")
 
         # start date month
-        self.startMonth = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
+        self.startMonth = ttk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
         self.startMonth.pack(side=tk.LEFT)
 
         tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
 
         # start date day
-        self.startDay = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
+        self.startDay = ttk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
         self.startDay.pack(side=tk.LEFT)
 
         tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
 
         # start date year
-        self.startYear = tk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
+        self.startYear = ttk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
         self.startYear.pack(side=tk.LEFT)
 
         tk.Label(dateFrame, text=" to ").pack(side=tk.LEFT)
         
         #end date month
-        self.endMonth = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
+        self.endMonth = ttk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.monthCmd)
         self.endMonth.pack(side=tk.LEFT)
 
         tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
 
         # end  date day
-        self.endDay = tk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
+        self.endDay = ttk.Entry(dateFrame, width=3, validate="key", validatecommand=self.master.dayCmd)
         self.endDay.pack(side=tk.LEFT)
 
         tk.Label(dateFrame, text="/").pack(side=tk.LEFT)
 
         # end date year
-        self.endYear = tk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
+        self.endYear = ttk.Entry(dateFrame, width=5, validate="key", validatecommand=self.master.yearCmd)
         self.endYear.pack(side=tk.LEFT)
 
         # gross pay
         tk.Label(inner, text="Enter Gross Pay:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-        self.grossPay = tk.Entry(inner, width=15, validate="key", validatecommand=self.master.moneyCmd)
+        self.grossPay = ttk.Entry(inner, width=15, validate="key", validatecommand=self.master.moneyCmd)
         self.grossPay.grid(row=2, column=1, sticky="w", padx=5, pady=5)
 
         # tax amount
         tk.Label(inner, text="Enter Tax Taken:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
-        self.taxAmount = tk.Entry(inner, width=15, validate="key", validatecommand=self.master.moneyCmd)
+        self.taxAmount = ttk.Entry(inner, width=15, validate="key", validatecommand=self.master.moneyCmd)
         self.taxAmount.grid(row=3, column=1, sticky="w", padx=5, pady=5)
 
         # frame for buttons
-        btnFrame = tk.Frame(inner)
+        btnFrame = ttk.Frame(inner)
         btnFrame.grid(row=4, column=0, columnspan=2, pady=10)
 
         # submit button
-        tk.Button(btnFrame, text="Submit", command=self.submitLog).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btnFrame, text="Submit", command=self.submitLog).pack(side=tk.LEFT, padx=5)
 
         # back button
-        tk.Button(btnFrame, text="Back",
+        ttk.Button(btnFrame, text="Back",
                   command=lambda : master.show_frame(HomeScreen)).pack(side=tk.LEFT, padx=5)
 
         # error messages
