@@ -1,4 +1,5 @@
 import sys
+import pandas as pd
 from datetime import datetime, timezone
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -45,13 +46,29 @@ def is_work_day():
 
     return False
 
+def already_logged_today(log):
+    """Returns True if a tip entry for today already exists in the daily sheet."""
+    if log.df.empty:
+        return False
+    # Normalize sheet dates to date objects to avoid format mismatches
+    # (e.g. Sheets may store "5/3/2026" but strftime produces "05/03/2026")
+    today = datetime.now().date()
+    sheet_dates = pd.to_datetime(log.df["Date"], format="%m/%d/%Y", errors="coerce").dt.date
+    return today in sheet_dates.values
+
 def main():
     # Check Google Calendar for a shift today
     if not is_work_day():
         logger.Logger()
         sys.exit(0)
-    else:
-        App().mainloop()
+
+    log = logger.Logger()
+
+    if already_logged_today(log):
+        print("Tip already logged for today. Exiting.")
+        sys.exit(0)
+    
+    App(log).mainloop()
 
 if __name__=="__main__":
     main()

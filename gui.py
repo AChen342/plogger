@@ -21,10 +21,10 @@ class App(ThemedTk):
     # Period log column widths
     COL_PERIOD = 16
 
-    def __init__(self):
+    def __init__(self, log=None):
         super().__init__()
         self.set_theme("yaru")
-        self.logger = logger.Logger()
+        self.logger = log if log is not None else logger.Logger()
 
         self.title("Pay Logger")
         self.geometry("800x700")
@@ -452,6 +452,3 @@ class NewPayDay(ttk.Frame):
         self.master.logger.addPayDay((startDate, endDate, float(self.grossPay.get()), float(self.taxAmount.get())))
         self.clearEntries()
         self.refreshDisplay()
-
-
-App().mainloop()
